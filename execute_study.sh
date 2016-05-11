@@ -7,7 +7,7 @@
 # cjpeg: From the mozjpeg project. The normal one doesn't prove anything!
 # dssim: Pornel's DSSIM tool (https://github.com/pornel/dssim)
 # parallel: GNU parallel (https://www.gnu.org/software/parallel/)
-for c in {identify,convert,cwebp,dwebp,bpgenc,bpgdec,cjpeg,dssim,parallel}; do
+for c in {identify,convert,cwebp,dwebp,bpgenc,bpgdec,cjpeg-moz,cjpeg-turbo,dssim,parallel}; do
 	command -v $c >/dev/null 2>&1 || { echo >&2 "Cannot find required command '$c'. Aborting."; exit 1; }
 done
 
@@ -32,7 +32,7 @@ function process_result() {
 	local DSSIM_L=`dssim /tmp/$TMPNAME/original_gs.png /tmp/$TMPNAME/${QUALITY}_gs.png | grep -Eo '^[0-9]+\.[0-9]+'`
 	local SSIM_L=`echo "1/($DSSIM_L + 1)" | bc -l`
 
-	local MSSSIM=`ms-ssim /tmp/$TMPNAME/original.png /tmp/$TMPNAME/$QUALITY.png`
+	# local MSSSIM=`ms-ssim /tmp/$TMPNAME/original.png /tmp/$TMPNAME/$QUALITY.png`
 
 	local PSNR=`compare -metric PSNR /tmp/$TMPNAME/original_gs.png /tmp/$TMPNAME/${QUALITY}_gs.png /dev/null 2>&1`
 
@@ -41,7 +41,7 @@ function process_result() {
 
 functional_party() {
 	local FNAME=$1
-	local TMPNAME=`echo $FNAME | grep -Eo "[a-f0-9]{32}"`
+	local TMPNAME="${FNAME%.*}"
 	local SIZE_H=$2
 	local SIZE_V=$((((3 * $SIZE_H)/2)))
 	local MIN_H=$3
@@ -51,7 +51,7 @@ functional_party() {
 	local height=$(echo $dims | cut -d x -f 2)
 
 	if [ "$width" -lt "$MIN_H" ]; then
-		echo "Skipping $FNAME because it is too small" 
+		echo "Skipping $FNAME because it is too small"
 		rm -rf /tmp/$TMPNAME
 		exit
 	fi
@@ -70,7 +70,6 @@ functional_party() {
 	local height=$(echo $dims | cut -d x -f 2)
 	local surface=`identify -format "%w * %h\n" /tmp/$TMPNAME/original.png | bc`
 
-
 	echo "filename,format,quality,bytes,pixels,bpp,ssim,ssim-l,ms-ssim,psnr" | tee $RESFILE
 
 	for q in $(seq 50 5 70; seq 75 1 99); do
@@ -87,16 +86,17 @@ functional_party() {
 		rm /tmp/$TMPNAME/$q.*
 	done
 
-	for q in $(seq 50 5 70; seq 75 1 99); do
-		cjpeg-moz -dc-scan-opt 2 -quality $q /tmp/$TMPNAME/original.ppm > /tmp/$TMPNAME/$q.out
-		convert /tmp/$TMPNAME/$q.out png24:/tmp/$TMPNAME/$q.png
-		process_result $TMPNAME MOZJPEG-dcso2 $q | tee -a $RESFILE
-		rm /tmp/$TMPNAME/$q.*
-	done
+	# TODO: Broken? -dc-scan-opt doesnt appear to be valid in this version
+	# for q in $(seq 50 5 70; seq 75 1 99); do
+	# 	cjpeg-moz -dc-scan-opt 2 -quality $q /tmp/$TMPNAME/original.ppm > /tmp/$TMPNAME/$q.out
+	# 	convert /tmp/$TMPNAME/$q.out png24:/tmp/$TMPNAME/$q.png
+	# 	process_result $TMPNAME MOZJPEG-dcso2 $q | tee -a $RESFILE
+	# 	rm /tmp/$TMPNAME/$q.*
+	# done
 
 	cjpeg-turbo -q 100 /tmp/$TMPNAME/original.ppm > /tmp/$TMPNAME/preoptim.jpg
 	mkdir /tmp/$TMPNAME/optim
-	for q in $(seq 100 -1 75); do 
+	for q in $(seq 100 -1 75); do
 		jpegoptim -q --force -d/tmp/$TMPNAME/optim -o -m$q /tmp/$TMPNAME/preoptim.jpg
 		mv /tmp/$TMPNAME/optim/preoptim.jpg /tmp/$TMPNAME/$q.out
 		convert /tmp/$TMPNAME/$q.out png24:/tmp/$TMPNAME/$q.png
@@ -144,33 +144,33 @@ functional_party() {
 	done
 
 	for q in $(seq 0 2 30); do
-		bpgenc -m 8 -q $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.png 
+		bpgenc -m 8 -q $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.png
 		bpgdec -o /tmp/$TMPNAME/$q.png /tmp/$TMPNAME/$q.out
 		process_result $TMPNAME BPG-m8 $q | tee -a $RESFILE
 		rm /tmp/$TMPNAME/$q.*
 	done
 
-	for q in $(seq 0 2 30); do
-		bpgenc_x265 -m 8 -q $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.png
-		bpgdec -o /tmp/$TMPNAME/$q.png /tmp/$TMPNAME/$q.out
-		process_result $TMPNAME BPG-m8-x265 $q | tee -a $RESFILE
-		rm /tmp/$TMPNAME/$q.*
-	done
+	# for q in $(seq 0 2 30); do
+	# 	bpgenc_x265 -m 8 -q $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.png
+	# 	bpgdec -o /tmp/$TMPNAME/$q.png /tmp/$TMPNAME/$q.out
+	# 	process_result $TMPNAME BPG-m8-x265 $q | tee -a $RESFILE
+	# 	rm /tmp/$TMPNAME/$q.*
+	# done
 
 	for q in $(seq 0 2 30); do
-		bpgenc -q $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.png 
+		bpgenc -q $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.png
 		bpgdec -o /tmp/$TMPNAME/$q.png /tmp/$TMPNAME/$q.out
 		process_result $TMPNAME BPG $q | tee -a $RESFILE
 		rm /tmp/$TMPNAME/$q.*
 	done
 
-	for q in $(seq 0 15 && seq 16 4 32); do
-		daala_enc -v $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.y4m 2> /dev/null
-		daala_dec -o /tmp/$TMPNAME/$q.y4m /tmp/$TMPNAME/$q.out 2> /dev/null
-		y4m2png -o /tmp/$TMPNAME/$q.png /tmp/$TMPNAME/$q.y4m 2> /dev/null
-		process_result $TMPNAME DAALA $q | tee -a $RESFILE
-		rm /tmp/$TMPNAME/$q.*
-	done
+	# for q in $(seq 0 15 && seq 16 4 32); do
+	# 	daala_enc -v $q -o /tmp/$TMPNAME/$q.out /tmp/$TMPNAME/original.y4m 2> /dev/null
+	# 	daala_dec -o /tmp/$TMPNAME/$q.y4m /tmp/$TMPNAME/$q.out 2> /dev/null
+	# 	y4m2png -o /tmp/$TMPNAME/$q.png /tmp/$TMPNAME/$q.y4m 2> /dev/null
+	# 	process_result $TMPNAME DAALA $q | tee -a $RESFILE
+	# 	rm /tmp/$TMPNAME/$q.*
+	# done
 
 	# Y4M TEST!!!!!
 	cp /tmp/$TMPNAME/original.y4m /tmp/$TMPNAME/test.out
@@ -190,142 +190,141 @@ functional_party() {
 
 	png2y4m --chroma-444 -o /tmp/$TMPNAME/even.y4m /tmp/$TMPNAME/even.png 2> /dev/null
 
-	for q in $(seq 48 -4 0); do
-		# convert the raw y4m into H.264 like a boss
-		x264 \
-			--quiet \
-			--no-progress \
-			--fps 1 \
-			--qp $q \
-			--trellis 2 \
-			--tune stillimage \
-			--overscan crop \
-			--level 4.1 \
-			/tmp/$TMPNAME/even.y4m \
-			-o /tmp/$TMPNAME/even.mkv 2> /dev/null
+	# for q in $(seq 48 -4 0); do
+	# 	# convert the raw y4m into H.264 like a boss
+	# 	x264 \
+	# 		--quiet \
+	# 		--no-progress \
+	# 		--fps 1 \
+	# 		--qp $q \
+	# 		--trellis 2 \
+	# 		--tune stillimage \
+	# 		--overscan crop \
+	# 		--level 4.1 \
+	# 		/tmp/$TMPNAME/even.y4m \
+	# 		-o /tmp/$TMPNAME/even.mkv 2> /dev/null
+	#
+	# 	# H.264 back into PNG, potentially with an extra row or column
+	# 	ffmpeg \
+	# 		-v error \
+	# 		-y \
+	# 		-i /tmp/$TMPNAME/even.mkv \
+	# 		-f APNG - | \
+	# 	convert - -crop $dims -delete 1--1 /tmp/$TMPNAME/$q.png
+	#
+	# 	mv /tmp/$TMPNAME/even.mkv /tmp/$TMPNAME/$q.out
+	#
+	# 	process_result $TMPNAME H264_420_QP_MKV $q | tee -a $RESFILE
+	#
+	# 	rm /tmp/$TMPNAME/$q.*
+	# done
 
-		# H.264 back into PNG, potentially with an extra row or column
-		ffmpeg \
-			-v error \
-			-y \
-			-i /tmp/$TMPNAME/even.mkv \
-			-f APNG - | \
-		convert - -crop $dims -delete 1--1 /tmp/$TMPNAME/$q.png
+	# local LASTSIZE=0
+	# for q in $(seq 0.2 0.2 10); do
+	# 	# bitrate is in kilobits. 8192 seems to work
+	# 	bitrate=$(echo "$q * $new_surface / 8192" | bc -l | sed -E "s/([0-9]+)\.[0-9]+/\1/g")
+	#
+	# 	# convert the raw y4m into H.264 like a boss
+	# 	x264 \
+	# 		--quiet \
+	# 		--no-progress \
+	# 		--fps 1 \
+	# 		--bitrate $bitrate \
+	# 		--aq-mode 1 \
+	# 		--trellis 2 \
+	# 		--tune stillimage \
+	# 		--overscan crop \
+	# 		--level 4.1 \
+	# 		/tmp/$TMPNAME/even.y4m \
+	# 		-o /tmp/$TMPNAME/even.mkv 2> /dev/null
+	#
+	# 	local CURRSIZE=$(stat -c "%s" /tmp/$TMPNAME/even.mkv)
+	# 	if [ "$LASTSIZE" = "$CURRSIZE" ]; then
+	# 		break
+	# 	fi
+	# 	local LASTSIZE=$CURRSIZE
+	#
+	# 	# H.264 back into PNG, potentially with an extra row or column
+	# 	ffmpeg \
+	# 		-v error \
+	# 		-y \
+	# 		-i /tmp/$TMPNAME/even.mkv \
+	# 		-f APNG - | \
+	# 		convert - -crop $dims -delete 1--1 png24:/tmp/$TMPNAME/$q.png
+	#
+	# 	mv /tmp/$TMPNAME/even.mkv /tmp/$TMPNAME/$q.out
+	#
+	# 	process_result $TMPNAME H264_420_AQ_MKV $q | tee -a $RESFILE
+	# 	rm /tmp/$TMPNAME/$q.*
+	# done
 
-		mv /tmp/$TMPNAME/even.mkv /tmp/$TMPNAME/$q.out
-
-		process_result $TMPNAME H264_420_QP_MKV $q | tee -a $RESFILE
-
-		rm /tmp/$TMPNAME/$q.*
-	done
-
-
-	local LASTSIZE=0
-	for q in $(seq 0.2 0.2 10); do
-		# bitrate is in kilobits. 8192 seems to work
-		bitrate=$(echo "$q * $new_surface / 8192" | bc -l | sed -E "s/([0-9]+)\.[0-9]+/\1/g")
-
-		# convert the raw y4m into H.264 like a boss
-		x264 \
-			--quiet \
-			--no-progress \
-			--fps 1 \
-			--bitrate $bitrate \
-			--aq-mode 1 \
-			--trellis 2 \
-			--tune stillimage \
-			--overscan crop \
-			--level 4.1 \
-			/tmp/$TMPNAME/even.y4m \
-			-o /tmp/$TMPNAME/even.mkv 2> /dev/null
-
-		local CURRSIZE=$(stat -c "%s" /tmp/$TMPNAME/even.mkv)
-		if [ "$LASTSIZE" = "$CURRSIZE" ]; then
-			break
-		fi
-		local LASTSIZE=$CURRSIZE
-
-		# H.264 back into PNG, potentially with an extra row or column
-		ffmpeg \
-			-v error \
-			-y \
-			-i /tmp/$TMPNAME/even.mkv \
-			-f APNG - | \
-			convert - -crop $dims -delete 1--1 png24:/tmp/$TMPNAME/$q.png
-
-		mv /tmp/$TMPNAME/even.mkv /tmp/$TMPNAME/$q.out
-
-		process_result $TMPNAME H264_420_AQ_MKV $q | tee -a $RESFILE
-		rm /tmp/$TMPNAME/$q.*
-	done
-
-	for q in $(seq 48 -4 0); do
-		# convert the raw y4m into H.264 like a boss
-		x264 \
-			--quiet \
-			--no-progress \
-			--output-csp i444 \
-			--fps 1 \
-			--qp $q \
-			--trellis 2 \
-			--tune stillimage \
-			--overscan crop \
-			--level 4.1 \
-			/tmp/$TMPNAME/original.y4m \
-			-o /tmp/$TMPNAME/$q.mkv 2> /dev/null
-
-		ffmpeg \
-			-v error \
-			-y \
-			-i /tmp/$TMPNAME/$q.mkv \
-			-f APNG \
-			/tmp/$TMPNAME/$q.png
-
-		mv /tmp/$TMPNAME/$q.mkv /tmp/$TMPNAME/$q.out
-
-		process_result $TMPNAME H264_444_QP_MKV $q | tee -a $RESFILE
-
-		rm /tmp/$TMPNAME/$q.*
-	done
+	# for q in $(seq 48 -4 0); do
+	# 	# convert the raw y4m into H.264 like a boss
+	# 	x264 \
+	# 		--quiet \
+	# 		--no-progress \
+	# 		--output-csp i444 \
+	# 		--fps 1 \
+	# 		--qp $q \
+	# 		--trellis 2 \
+	# 		--tune stillimage \
+	# 		--overscan crop \
+	# 		--level 4.1 \
+	# 		/tmp/$TMPNAME/original.y4m \
+	# 		-o /tmp/$TMPNAME/$q.mkv 2> /dev/null
+	#
+	# 	ffmpeg \
+	# 		-v error \
+	# 		-y \
+	# 		-i /tmp/$TMPNAME/$q.mkv \
+	# 		-f APNG \
+	# 		/tmp/$TMPNAME/$q.png
+	#
+	# 	mv /tmp/$TMPNAME/$q.mkv /tmp/$TMPNAME/$q.out
+	#
+	# 	process_result $TMPNAME H264_444_QP_MKV $q | tee -a $RESFILE
+	#
+	# 	rm /tmp/$TMPNAME/$q.*
+	# done
 
 
-	local LASTSIZE=0
-	for q in $(seq 0.2 0.2 10); do
-		# bitrate is in kilobits. 8192 seems to work
-		bitrate=$(echo "$q * $surface / 8192" | bc -l | sed -E "s/([0-9]+)\.[0-9]+/\1/g")
-
-		# convert the raw y4m into H.264 like a boss
-		x264 \
-			--no-progress \
-			--output-csp i444 \
-			--fps 1 \
-			--bitrate $bitrate \
-			--aq-mode 1 \
-			--trellis 2 \
-			--tune stillimage \
-			--overscan crop \
-			--level 4.1 \
-			/tmp/$TMPNAME/original.y4m \
-			-o /tmp/$TMPNAME/the.mkv 2> /dev/null
-
-		local CURRSIZE=$(stat -c "%s" /tmp/$TMPNAME/the.mkv)
-		if [ "$LASTSIZE" = "$CURRSIZE" ]; then
-			break
-		fi
-		local LASTSIZE=$CURRSIZE
-
-		ffmpeg \
-			-v error \
-			-y \
-			-i /tmp/$TMPNAME/the.mkv \
-			-f APNG \
-			/tmp/$TMPNAME/$q.png
-
-		mv /tmp/$TMPNAME/the.mkv /tmp/$TMPNAME/$q.out
-
-		process_result $TMPNAME H264_444_AQ_MKV $q | tee -a $RESFILE
-		rm /tmp/$TMPNAME/$q.*
-	done
+	# local LASTSIZE=0
+	# for q in $(seq 0.2 0.2 10); do
+	# 	# bitrate is in kilobits. 8192 seems to work
+	# 	bitrate=$(echo "$q * $surface / 8192" | bc -l | sed -E "s/([0-9]+)\.[0-9]+/\1/g")
+	#
+	# 	# convert the raw y4m into H.264 like a boss
+	# 	x264 \
+	# 		--no-progress \
+	# 		--output-csp i444 \
+	# 		--fps 1 \
+	# 		--bitrate $bitrate \
+	# 		--aq-mode 1 \
+	# 		--trellis 2 \
+	# 		--tune stillimage \
+	# 		--overscan crop \
+	# 		--level 4.1 \
+	# 		/tmp/$TMPNAME/original.y4m \
+	# 		-o /tmp/$TMPNAME/the.mkv 2> /dev/null
+	#
+	# 	local CURRSIZE=$(stat -c "%s" /tmp/$TMPNAME/the.mkv)
+	# 	if [ "$LASTSIZE" = "$CURRSIZE" ]; then
+	# 		break
+	# 	fi
+	# 	local LASTSIZE=$CURRSIZE
+	#
+	# 	ffmpeg \
+	# 		-v error \
+	# 		-y \
+	# 		-i /tmp/$TMPNAME/the.mkv \
+	# 		-f APNG \
+	# 		/tmp/$TMPNAME/$q.png
+	#
+	# 	mv /tmp/$TMPNAME/the.mkv /tmp/$TMPNAME/$q.out
+	#
+	# 	process_result $TMPNAME H264_444_AQ_MKV $q | tee -a $RESFILE
+	# 	rm /tmp/$TMPNAME/$q.*
+	# done
 ##############################
 #############################
 

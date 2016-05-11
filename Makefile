@@ -7,6 +7,4 @@ build: Dockerfile
 run:
 	docker run \
 		--rm \
-		-it \
-		imagequality \
-		/bin/sh
+		imagequality
