@@ -46,6 +46,7 @@ RUN git clone https://github.com/xiph/daala.git /tmp/daala \
 
 #####
 # Everything below this will be affected if the versions change
+# TODO: Can these respect a cache somehow?
 #####
 
 ENV LIBBPG_VERSION 		0.9.6
