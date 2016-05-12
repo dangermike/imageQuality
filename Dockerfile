@@ -54,23 +54,23 @@ ENV MOZJPEG_VERSION 	3.1
 ENV JPEGOPTIM_VERSION 1.4.3
 ENV JPEGTURBO_VERSION 1.4.90
 
-RUN wget -qO- http://bellard.org/bpg/libbpg-${LIBBPG_VERSION}.tar.gz | tar xvz -C /tmp \
+RUN wget -qO- http://bellard.org/bpg/libbpg-${LIBBPG_VERSION}.tar.gz | tar xz -C /tmp \
 	&& make install -C /tmp/libbpg-${LIBBPG_VERSION}
 
-RUN wget -qO- http://github.com/pornel/dssim/archive/${DSSIM_VERSION}.tar.gz | tar xvz -C /tmp/ \
+RUN wget -qO- http://github.com/pornel/dssim/archive/${DSSIM_VERSION}.tar.gz | tar xz -C /tmp/ \
 	&& make -C /tmp/dssim-${DSSIM_VERSION} \
 	&& cp /tmp/dssim-${DSSIM_VERSION}/bin/dssim /bin
 
-RUN wget -qO- http://github.com/mozilla/mozjpeg/releases/download/v${MOZJPEG_VERSION}/mozjpeg-${MOZJPEG_VERSION}-release-source.tar.gz | tar xvz -C /tmp \
+RUN wget -qO- http://github.com/mozilla/mozjpeg/releases/download/v${MOZJPEG_VERSION}/mozjpeg-${MOZJPEG_VERSION}-release-source.tar.gz | tar xz -C /tmp \
 	&& (cd /tmp/mozjpeg && ./configure) \
 	&& make -C /tmp/mozjpeg \
 	&& cp /tmp/mozjpeg/cjpeg /bin/cjpeg-moz
 
-RUN wget -qO- https://github.com/tjko/jpegoptim/archive/RELEASE.${JPEGOPTIM_VERSION}.tar.gz | tar xvz -C /tmp \
+RUN wget -qO- https://github.com/tjko/jpegoptim/archive/RELEASE.${JPEGOPTIM_VERSION}.tar.gz | tar xz -C /tmp \
 	&& (cd /tmp/jpegoptim-RELEASE.${JPEGOPTIM_VERSION} && ./configure) \
 	&& make install -C /tmp/jpegoptim-RELEASE.${JPEGOPTIM_VERSION}
 
-RUN wget -qO- https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEGTURBO_VERSION}.tar.gz | tar xvz -C /tmp \
+RUN wget -qO- https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEGTURBO_VERSION}.tar.gz | tar xz -C /tmp \
 	&& (cd /tmp/libjpeg-turbo-${JPEGTURBO_VERSION} \
 		&& autoreconf -fiv \
 		&& ./configure \
@@ -78,6 +78,4 @@ RUN wget -qO- https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEGTURBO
 	&& make -C /tmp/libjpeg-turbo-${JPEGTURBO_VERSION} \
 	&& cp /tmp/libjpeg-turbo-${JPEGTURBO_VERSION}/cjpeg /bin/cjpeg-turbo
 
-COPY originals /originals
-COPY ./execute_study.sh /
-CMD ["dumb-init", "./execute_study.sh"]
+CMD ["dumb-init", "/opt/execute_study.sh"]
