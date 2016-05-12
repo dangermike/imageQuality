@@ -41,6 +41,16 @@ functional_party() {
 	rm -rf /tmp/$TMPNAME
 	mkdir /tmp/$TMPNAME
 
+	# Isolate files for mktemp
+	tpd=$(mktemp -td)
+	mktemp() {
+		echo $(/bin/mktemp -tp ${tpd})
+	}
+
+	# Clean up temp dirs on script exit
+	trap "rm -rf /tmp/${TMPNAME}" EXIT
+	trap "rm -rf ${tpd}" EXIT
+
 	declare -A files
 	files[original_png]=$(mktemp).png
 	files[original_ppm]=$(mktemp).ppm
@@ -87,10 +97,10 @@ functional_party() {
 		echo $TMPNAME,$FILETYPE,$q,$BYTE_COUNT,$surface,$BPP,$SSIM,$SSIM_L,$MSSSIM,$PSNR
 
 		rm ${quality_gs} ${outfile} ${q_file}
+		if [[ $RUN_ONCE ]]; then break; fi
 	}
 
-	#for q in $(seq 50 5 70; seq 75 1 99); do
-	for q in $(seq 50 5 50); do
+	for q in $(seq 50 5 70; seq 75 1 99); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -99,8 +109,7 @@ functional_party() {
 		process_result JPEG $q ${outfile} ${q_file}
 	done
 
-	#for q in $(seq 50 5 70; seq 75 1 99); do
-	for q in $(seq 50 5 50); do
+	for q in $(seq 50 5 70; seq 75 1 99); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -120,8 +129,7 @@ functional_party() {
 
 	cjpeg-turbo -q 100 ${files[original_ppm]} > /tmp/$TMPNAME/preoptim.jpg
 	mkdir /tmp/$TMPNAME/optim
-	#for q in $(seq 100 -1 75); do
-	for q in $(seq 100 -1 100); do
+	for q in $(seq 100 -1 75); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -140,8 +148,7 @@ functional_party() {
 	#		process_result JPEGMINI $q ${outfile} ${q_file}
 	#	done
 
-	#for q in $(seq 50 5 70; seq 75 1 99); do
-	for q in $(seq 50 5 50); do
+	for q in $(seq 50 5 70; seq 75 1 99); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -150,8 +157,7 @@ functional_party() {
 		process_result WEBP $q ${outfile} ${q_file}
 	done
 
-	#for q in $(seq 50 5 70; seq 75 1 99); do
-	for q in $(seq 50 5 50); do
+	for q in $(seq 50 5 70; seq 75 1 99); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -162,8 +168,7 @@ functional_party() {
 
 	local LASTSIZE=0
 	# aiming for 0.5 - 4 bits per pixel
-	#for q in $(seq 0.5 0.25 4); do
-	for q in $(seq 0.5 0.25 0.5); do
+	for q in $(seq 0.5 0.25 4); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -180,8 +185,7 @@ functional_party() {
 		process_result WEBP-m6p10-size $q ${outfile} ${q_file}
 	done
 
-	#for q in $(seq 0 2 30); do
-	for q in $(seq 0 2 0); do
+	for q in $(seq 0 2 30); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -199,8 +203,7 @@ functional_party() {
 	# 	process_result BPG-m8-x265 $q ${outfile} ${q_file}
 	# done
 
-	#for q in $(seq 0 2 30); do
-	for q in $(seq 0 2 0); do
+	for q in $(seq 0 2 30); do
 		local outfile=$(mktemp)
 		local q_file=$(mktemp)
 
@@ -221,10 +224,11 @@ functional_party() {
 
 	# Y4M TEST!!!!!
 	for q in $(seq 1); do
-		local outfile="$(mktemp)"
+		local outfile=$(mktemp)
 		local q_file=$(mktemp)
+		cp ${files[original_y4m]} ${outfile}
 		y4m2png -o ${q_file} ${files[original_y4m]} 2> /dev/null
-		process_result Y4M test ${files[original_y4m]} ${q_file}
+		process_result Y4M test ${outfile} ${q_file}
 	done
 	# END Y4M TEST
 
@@ -379,7 +383,9 @@ functional_party() {
 	##############################
 	#############################
 
-	rm -rf /tmp/$TMPNAME
+	for i in "${!files[@]}"; do
+		rm ${files[$i]}
+	done
 }
 
 export -f functional_party
