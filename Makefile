@@ -16,7 +16,7 @@ test:
 
 run:
 	docker run \
-		-v $(shell pwd)/bin:/opt \
+		-v $(shell pwd):/opt \
 		-v $(shell pwd)/results:/results \
 		-v $(shell pwd)/originals:/originals \
 		--rm \
